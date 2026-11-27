@@ -32,6 +32,12 @@ export type { CompactMemoFields } from "./passport.js";
 export { runScan } from "./scan.js";
 export { parseTxMeta } from "./tx.js";
 export type { ParsedTxMeta } from "./tx.js";
+export { compareClaimedToCurrentState } from "./current-state.js";
+export type { CheckStateComparison, VerifyCurrentState } from "./current-state.js";
+export {
+  VERIFY_INVALID_INTERPRETATION,
+  VERIFY_VALID_INTERPRETATION,
+} from "./interpretation.js";
 export { verifyPassportTx } from "./verify.js";
 export type {
   AccountStatus,

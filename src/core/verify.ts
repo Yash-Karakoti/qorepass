@@ -2,6 +2,11 @@ import { explorerTxUrl, getTx, type QoreChainClient } from "@qorechain/sdk";
 
 import { explorerNetwork } from "./client.js";
 import { MEMO_MAX_BYTES } from "./checks.js";
+import { compareClaimedToCurrentState } from "./current-state.js";
+import {
+  VERIFY_INVALID_INTERPRETATION,
+  VERIFY_VALID_INTERPRETATION,
+} from "./interpretation.js";
 import {
   parseCompactMemo,
   passportFromCompact,
@@ -24,6 +29,7 @@ export async function verifyPassportTx(
     return {
       status: "INVALID",
       valid: false,
+      interpretation: VERIFY_INVALID_INTERPRETATION,
       reasons: [
         "TX_NOT_FOUND",
         err instanceof Error ? err.message : String(err),
@@ -38,6 +44,7 @@ export async function verifyPassportTx(
     return {
       status: "INVALID",
       valid: false,
+      interpretation: VERIFY_INVALID_INTERPRETATION,
       reasons: ["TX_NOT_FOUND"],
       explorerUrl,
     };
@@ -52,6 +59,7 @@ export async function verifyPassportTx(
     return {
       status: "INVALID",
       valid: false,
+      interpretation: VERIFY_INVALID_INTERPRETATION,
       reasons,
       memo: meta.memo,
       signer: meta.signer,
@@ -70,6 +78,7 @@ export async function verifyPassportTx(
     return {
       status: "INVALID",
       valid: false,
+      interpretation: VERIFY_INVALID_INTERPRETATION,
       reasons,
       memo: meta.memo,
       signer: meta.signer,
@@ -119,10 +128,27 @@ export async function verifyPassportTx(
     (meta.code === undefined || meta.code === 0) &&
     recomputedHash === memoHash;
 
+  let currentState;
+  try {
+    currentState = await compareClaimedToCurrentState(
+      client,
+      meta.signer,
+      parsed.bitmask,
+    );
+  } catch (err) {
+    reasons.push(
+      `CURRENT_STATE_UNAVAILABLE: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   return {
     status: valid ? "VALID" : "INVALID",
     valid,
+    interpretation: valid
+      ? VERIFY_VALID_INTERPRETATION
+      : VERIFY_INVALID_INTERPRETATION,
     reasons: valid ? [] : reasons,
+    currentState,
     passport,
     memo: meta.memo,
     memoHash,

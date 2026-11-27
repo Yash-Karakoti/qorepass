@@ -1,3 +1,7 @@
+import type { VerifyCurrentState } from "./current-state.js";
+
+export type { CheckStateComparison, VerifyCurrentState } from "./current-state.js";
+
 /** QorePass scan check derived from on-chain reads only. */
 export interface ScanCheck {
   id: string;
@@ -54,8 +58,18 @@ export interface AccountStatus {
 
 export interface VerifyPassportResult {
   status: "VALID" | "INVALID";
+  /**
+   * Cryptographic / structural validity of the memo in this tx.
+   * Does **not** mean the claim still matches live chain state — see `currentState`.
+   */
   valid: boolean;
+  /**
+   * Plain-language meaning of `status` / `valid` for UI copy.
+   */
+  interpretation: string;
   reasons: string[];
+  /** Live chain read vs memo bitmask (when signer + memo could be parsed). */
+  currentState?: VerifyCurrentState;
   passport?: PassportV1;
   memo?: string;
   memoHash?: string;

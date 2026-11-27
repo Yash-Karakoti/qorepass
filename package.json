@@ -17,7 +17,8 @@
     "@qorechain/pqc": "^0.2.3",
     "@qorechain/sdk": "^0.14.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
