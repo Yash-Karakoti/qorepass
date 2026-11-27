@@ -8,9 +8,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "demo:keygen": "tsx scripts/demo-keygen.ts",
+    "demo:hybrid": "tsx scripts/hybrid-demo.ts"
   },
   "dependencies": {
+    "@qorechain/pqc": "^0.2.3",
     "@qorechain/sdk": "^0.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -19,7 +23,10 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "dotenv": "^18.0.10",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.3",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vitest": "^3.2.4"
   }
 }

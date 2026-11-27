@@ -1,58 +1,106 @@
-# QoreChain full-stack web starter
+# QorePass
 
-A minimal [Vite](https://vitejs.dev) + React + TypeScript dApp that uses
-[`@qorechain/sdk`](https://github.com/qorechain/qorechain-sdk) to:
+Quantum Readiness Passport for [QoreChain](https://docs.qorechain.io) testnet
+(`qorechain-diana`, EVM chain id **9800**).
 
-- connect to QoreChain testnet (`createClient`),
-- read a native balance for an address you enter, and
-- read the tokenomics overview (`qor_getTokenomicsOverview`).
+TypeScript (strict), MIT. Chain logic lives in `src/core` and is exposed through
+`src/lib/api.ts` (no separate API server in Step 2).
 
 ## Prerequisites
 
-- **Node.js >= 20**.
-- A reachable QoreChain **REST** endpoint (`VITE_QORE_REST_URL`) for balances and
-  an **EVM JSON-RPC** endpoint (`VITE_QORE_EVM_RPC_URL`) for the `qor_*`
-  namespace. Both default to localhost. Point them at a testnet
-  (`qorechain-diana`) or mainnet (`qorechain-vladi`) node, or a local node.
+- **Node.js >= 20**
+- Testnet endpoints (defaults in `.env.example`):
+  - REST `https://api-testnet.qore.host`
+  - RPC `https://rpc-testnet.qore.host`
+  - EVM `https://evm-testnet.qore.host`
 
-## Setup & run
+## Setup
 
 ```sh
-pnpm install
-cp .env.example .env   # the scaffolder already does this for you
-pnpm dev               # http://localhost:5173
+npm install
+cp .env.example .env
+npm run dev    # http://localhost:5173
 ```
 
-Configure endpoints in `.env` (only `VITE_`-prefixed vars are exposed to the
-browser):
+### Environment
 
-| Variable               | Purpose                | Default                 |
-| ---------------------- | ---------------------- | ----------------------- |
-| `VITE_QORE_REST_URL`     | Native REST (balances) | `/lcd` (the dev server proxy) |
-| `QORE_REST_PROXY_TARGET` | Where `/lcd` goes      | the chosen network's REST     |
-| `VITE_QORE_EVM_RPC_URL`  | EVM JSON-RPC (`qor_*`) | the chosen network's EVM RPC  |
+| Variable | Used by | Purpose |
+| -------- | ------- | ------- |
+| `VITE_QORE_REST_URL` | Browser | REST base (`/lcd` → Vite proxy) |
+| `QORE_REST_PROXY_TARGET` | Vite dev/preview | Upstream REST for `/lcd` |
+| `VITE_QORE_EVM_RPC_URL` | Browser | EVM JSON-RPC |
+| `QORE_REST_URL` | Node scripts | Direct REST (no proxy) |
+| `QORE_RPC_URL` | Node scripts (signing) | Comet RPC |
+| `DEMO_MNEMONIC` | Node scripts only | Testnet demo wallet — **never** `VITE_` |
 
-The public REST API sends no CORS headers, so the browser reaches it through the
-Vite dev and preview servers (`/lcd`, see `vite.config.ts`). For production,
-serve the app behind a proxy that forwards `/lcd` the same way.
+`DEMO_MNEMONIC` must not be imported from browser code.
 
-## Build / type-check
+### CORS / production hosting
 
-```sh
-pnpm typecheck   # tsc --noEmit
-pnpm build       # type-check + vite build
+The public REST API has **no CORS headers**. In development, Vite proxies
+`/lcd` to `QORE_REST_PROXY_TARGET` (see `vite.config.ts`).
+
+For **production** (Vercel, Netlify, etc.), add a rewrite so browser requests to
+`/lcd/*` reach testnet REST, for example:
+
+- **Vercel** (`vercel.json`): rewrite `/lcd/:path*` →
+  `https://api-testnet.qore.host/:path*`
+- **Netlify** (`netlify.toml`): `from = "/lcd/*"`, `to = "https://api-testnet.qore.host/:splat"`, `status = 200`
+
+Keep `VITE_QORE_REST_URL=/lcd` in the deployed environment.
+
+## Chain core (`src/core`)
+
+| Module | Responsibility |
+| ------ | -------------- |
+| `client.ts` | `createQorePassClient()` — browser `/lcd` vs Node `QORE_REST_URL` |
+| `account.ts` | `getAccountStatus` — balances + `fetchPqcStatus` (`GET /qorechain/pqc/v1/account/{address}`) |
+| `scan.ts` | `runScan` — weighted checks, score 0–100, grade A–F |
+| `passport.ts` | Compact memo + canonical JSON + SHAKE-256 (`@qorechain/pqc`) |
+| `verify.ts` | `verifyPassportTx(txHash)` — self-contained memo parse + hash check |
+| `checks.ts` | Fixed scored-check bitmask order (see file header) |
+
+### Scan checks (on-chain only)
+
+- Native **uqor** balance (bank REST)
+- **PQC key registered** (`/qorechain/pqc/v1/account/{address}` via `fetchPqcStatus`)
+- **ML-DSA-87** algorithm id when reported
+- **Proof of possession** when the chain returns `possessionProven`
+- **`hasPassport`** (not scored) — prior compact memo tx found via tx search
+
+## Programmatic API (`src/lib/api.ts`)
+
+- `health()` — network + endpoints
+- `scanAddress(address)`
+- `preparePassport(address)`
+- `verifyTx(txHash)` — parses memo only; no fresh scan required
+
+### Compact on-chain memo (≤256 bytes)
+
+Chain limit: **256 bytes** (QoreX + custody kit; SDK `sdk` code 12).
+
+```
+qorepass:v1:<score>:<grade>:<bitmask>:<unixTime>:<hexhash>
 ```
 
-## Using `@qorechain/sdk` before it is published
+Bitmask bits (fixed order): `account_funded` (1), `pqc_key_registered` (2),
+`pqc_algorithm_mldsa87` (4), `pqc_possession_proven` (8). The SHAKE-256 hash
+covers canonical JSON `{ v, address, score, grade, checks[{id,passed}], issuedAt }`
+with `issuedAt` = `new Date(unixTime * 1000).toISOString()`.
 
-`@qorechain/sdk` is published to npm - once published, `pnpm install` just
-works. Until then, scaffold with the CLI's `--local` flag to rewrite the
-dependency to a `file:` link into the SDK monorepo, after building the workspace
-packages:
+## Scripts
 
 ```sh
-# at the qorechain-sdk monorepo root
-pnpm -r build
-# then scaffold with --local
-npx create-qorechain-dapp my-dapp --template fullstack-web --local
+npm run typecheck
+npm test
+npm run demo:keygen   # new mnemonic + qor1 address (stdout only)
+npm run demo:hybrid   # hybrid self-transfer + compact memo (fund DEMO_MNEMONIC first)
+npm run demo:hybrid -- --dry-run   # print memo only
+```
+
+## Build
+
+```sh
+npm run build
+npm run preview
 ```
